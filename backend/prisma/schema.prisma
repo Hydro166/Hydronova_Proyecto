@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  nombre    String
+  telefono  String?
+  direccion String?
+  rol       String   @default("cliente")
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders    Order[]
+  cart      CartItem[]
+  adminLogs AdminLog[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  nombre      String
+  descripcion String
+  precio      Float
+  precioOferta Float?
+  stock       Int      @default(0)
+  imagenUrl   String
+  categoria   String   @default("Vegetales")
+  unidadMedida String  @default("unidad")
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  cantidad  Int      @default(1)
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  userId          String
+  numero          String   @unique
+  fecha           DateTime @default(now())
+  estado          String   @default("pendiente")
+  total           Float
+  direccionEnvio  String
+  telefonoContacto String
+  emailContacto   String
+  metodoPago      String   @default("contraentrega")
+  notas           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items OrderItem[]
+}
+
+model OrderItem {
+  id              String   @id @default(cuid())
+  orderId         String
+  productId       String
+  cantidad        Int
+  precioUnitario  Float
+  createdAt       DateTime @default(now())
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  nombre    String
+  email     String
+  asunto    String
+  mensaje   String
+  respondido Boolean @default(false)
+  respuesta String?
+  respondidoEn DateTime?
+  createdAt DateTime @default(now())
+}
+
+model AdminLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  accion    String
+  detalles  String
+  createdAt DateTime @default(now())
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([createdAt])
+  @@map("admin_logs")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([email])
+}
