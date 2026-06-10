@@ -290,6 +290,11 @@ router.patch('/orders/:id', async (req, res) => {
       return res.status(404).json({ error: 'Orden no encontrada' });
     }
 
+    // No permitir modificar un pedido que ya está cancelado
+    if (order.estado === 'CANCELADO') {
+      return res.status(400).json({ error: 'No se puede modificar un pedido que ya ha sido cancelado' });
+    }
+
     const updateData = { estado };
     if (notas) updateData.notas = notas;
 
@@ -407,38 +412,51 @@ router.get('/sales-by-day', async (req, res) => {
 // ============================================
 // ACTIVAR/DESACTIVAR USUARIO
 // ============================================
-router.patch('/users/:id/toggle-status', async (req, res) => {
+router.patch('/orders/:id', async (req, res) => {
   try {
+    const adminId = req.user.id;
     const { id } = req.params;
-    const { activo } = req.body;
+    const { estado, notas } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { id } });
-    if (!user) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
+    const validStates = ['PENDIENTE', 'EN_PREPARACION', 'ENVIADO', 'ENTREGADO', 'CANCELADO'];
+    if (!estado || !validStates.includes(estado)) {
+      return res.status(400).json({ error: 'Estado inválido' });
     }
 
-    const updated = await prisma.user.update({
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) {
+      return res.status(404).json({ error: 'Orden no encontrada' });
+    }
+
+    console.log('ESTADO ACTUAL DE LA ORDEN:', order.estado);
+    console.log('COMPARACIÓN:', order.estado === 'CANCELADO');
+
+    if (order.estado === 'CANCELADO') {
+      return res.status(400).json({ error: 'No se puede modificar un pedido que ya ha sido cancelado' });
+    }
+
+    const updateData = { estado };
+    if (notas) updateData.notas = notas;
+
+    const updated = await prisma.order.update({
       where: { id },
-      data: { activo: activo !== undefined ? activo : !user.activo },
-      select: {
-        id: true,
-        email: true,
-        nombre: true,
-        telefono: true,
-        direccion: true,
-        activo: true,
-        createdAt: true
+      data: updateData,
+      include: {
+        user: true,
+        items: { include: { product: true } }
       }
     });
 
-    res.json({
-      message: `Usuario ${updated.activo ? 'activado' : 'desactivado'} exitosamente`,
-      user: updated
+    await logAdminAction(adminId, 'cambiar_estado_orden', {
+      orderId: id,
+      nuevoEstado: estado,
+      ordenAnterior: order.estado
     });
+
+    res.json({ message: 'Estado de orden actualizado', order: updated });
   } catch (error) {
-    console.error('Error cambiando estado de usuario:', error);
-    res.status(500).json({ error: 'Error al cambiar estado del usuario' });
+    console.error('Error actualizando orden:', error);
+    res.status(500).json({ error: 'Error al actualizar orden' });
   }
 });
-
 export default router;

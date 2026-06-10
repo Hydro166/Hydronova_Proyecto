@@ -192,7 +192,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ACTUALIZAR ESTADO DE UNA ORDEN (ADMIN)
+// ACTUALIZAR ESTADO DE UNA ORDEN (ADMIN) - CORREGIDO
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -203,12 +203,22 @@ router.patch('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Estado inválido' });
     }
 
-    const order = await prisma.order.update({
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) {
+      return res.status(404).json({ error: 'Orden no encontrada' });
+    }
+
+    // No permitir modificar un pedido que ya está cancelado
+    if (order.estado === 'CANCELADO') {
+      return res.status(400).json({ error: 'No se puede modificar un pedido que ya ha sido cancelado' });
+    }
+
+    const updated = await prisma.order.update({
       where: { id },
       data: { estado }
     });
 
-    res.json({ message: 'Estado actualizado', order });
+    res.json({ message: 'Estado actualizado', order: updated });
   } catch (error) {
     console.error('Error actualizando orden:', error);
     res.status(500).json({ error: 'Error al actualizar' });
